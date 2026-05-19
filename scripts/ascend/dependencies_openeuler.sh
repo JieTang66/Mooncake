@@ -282,6 +282,7 @@ install_go() {
 
     [ "$downloaded" = true ] || print_error "Failed to download Go ${GOVER}"
 
+    rm -rf /usr/local/go
     tar -C /usr/local -xzf "${tarball}"
     rm -f "${tarball}"
     export PATH="/usr/local/go/bin:${PATH}"
