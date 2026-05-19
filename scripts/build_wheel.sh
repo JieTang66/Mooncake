@@ -188,7 +188,14 @@ rm -rf ${OUTPUT_DIR}/
 mkdir -p ${OUTPUT_DIR}
 
 echo "Installing required build packages"
-if command -v pip &>/dev/null; then
+if [ "$NPU_BUILD" = "1" ]; then
+    PYTHON_CMD="python${PYTHON_VERSION}"
+    if ! command -v "$PYTHON_CMD" &>/dev/null; then
+        echo "Error: $PYTHON_CMD not found for NPU wheel build"
+        exit 1
+    fi
+    "$PYTHON_CMD" -m pip install --upgrade pip build setuptools wheel auditwheel
+elif command -v pip &>/dev/null; then
     python${PYTHON_VERSION} -m pip install --upgrade pip build setuptools wheel auditwheel
 elif command -v uv &>/dev/null; then
     uv pip install --upgrade pip
@@ -258,7 +265,12 @@ echo "Using platform tag: $PLATFORM_TAG"
 
 echo "Repairing wheel with auditwheel for platform: $PLATFORM_TAG"
 python${PYTHON_VERSION} -m build --wheel --outdir ${OUTPUT_DIR}
-auditwheel repair ${OUTPUT_DIR}/*.whl \
+if [ "$NPU_BUILD" = "1" ]; then
+    AUDITWHEEL_CMD="python${PYTHON_VERSION} -m auditwheel"
+else
+    AUDITWHEEL_CMD="auditwheel"
+fi
+${AUDITWHEEL_CMD} repair ${OUTPUT_DIR}/*.whl \
     --exclude libcurl.so* \
     --exclude libibverbs.so* \
     --exclude libmlx5.so* \

@@ -20,14 +20,14 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11']
 
     env:
       BUILD_WITH_EP: "0"
       NPU_BUILD: "1"
 
     container:
-      image: localhost:5000/mooncake-hixl-ci:v5
+      image: localhost:5000/mooncake-hixl-ci:v6-py310
 
       options: --privileged --user 0:0 --device /dev/davinci0 --device /dev/davinci1 --device /dev/davinci2 --device /dev/davinci3
                     --device /dev/davinci4 --device /dev/davinci5 --device /dev/davinci6 --device /dev/davinci7
@@ -115,10 +115,14 @@ jobs:
           echo "Direct GitHub checkout failed and all mirror retries failed"
           exit 1
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+      - name: Use container Python ${{ matrix.python-version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHON_BIN="$(command -v python${{ matrix.python-version }})"
+          "$PYTHON_BIN" --version
+          "$PYTHON_BIN" -m pip --version
+          echo "PYTHON_BIN=${PYTHON_BIN}" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         shell: bash
@@ -144,6 +148,7 @@ jobs:
             -DBUILD_UNIT_TESTS=OFF
             -DBUILD_EXAMPLES=ON
             -DCMAKE_BUILD_TYPE=Release
+            -DPython3_EXECUTABLE="${PYTHON_BIN}"
           )
           cmake .. "${cmake_args[@]}"
 
