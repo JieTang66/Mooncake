@@ -126,10 +126,18 @@ jobs:
 
       - name: Install dependencies
         shell: bash
+        env:
+          ASCEND_GITHUB_MIRROR_URLS: 'https://ghfast.top/'
         run: |
+          set -euo pipefail
           source /usr/local/Ascend/cann-9.0.0/set_env.sh
-          bash -x dependencies.sh -y
+          if command -v apt-get >/dev/null 2>&1; then
+            bash -x dependencies.sh -y
+          else
+            bash -x scripts/ascend/dependencies_openeuler.sh -y
+          fi
           bash scripts/ascend/dependencies_ascend_installation.sh
+          echo "PATH=/usr/local/go/bin:${PATH}" >> "$GITHUB_ENV"
 
       - name: Configure project
         shell: bash
