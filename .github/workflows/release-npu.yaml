@@ -138,6 +138,10 @@ jobs:
           fi
           bash scripts/ascend/dependencies_ascend_installation.sh
           echo "PATH=/usr/local/go/bin:${PATH}" >> "$GITHUB_ENV"
+          echo "GOPROXY=https://goproxy.cn,https://goproxy.io,direct" >> "$GITHUB_ENV"
+          echo "GOSUMDB=sum.golang.google.cn" >> "$GITHUB_ENV"
+          /usr/local/go/bin/go env -w GOPROXY=https://goproxy.cn,https://goproxy.io,direct
+          /usr/local/go/bin/go env -w GOSUMDB=sum.golang.google.cn
 
       - name: Configure project
         shell: bash
@@ -162,10 +166,15 @@ jobs:
 
       - name: Build project
         shell: bash
+        env:
+          GOPROXY: https://goproxy.cn,https://goproxy.io,direct
+          GOSUMDB: sum.golang.google.cn
         run: |
+          set -euo pipefail
           source /usr/local/Ascend/cann-9.0.0/set_env.sh
+          export PATH="/usr/local/go/bin:${PATH}"
           cd build
-          cmake --build . -j$(nproc)
+          cmake --build . -j"$(nproc)"
           cmake --install .
 
       - name: Generate Python version tag
