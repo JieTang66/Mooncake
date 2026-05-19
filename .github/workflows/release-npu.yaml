@@ -1,0 +1,241 @@
+name: Test Build Ascend NPU
+
+on:
+  push:
+    branches:
+      - npu/pypi-release-test
+  pull_request:
+    branches:
+      - npu/pypi-release-test
+
+jobs:
+  build:
+    if: github.repository == 'kvcache-ai/Mooncake'
+
+    runs-on: self-hosted
+
+    permissions:
+      contents: write
+
+    strategy:
+      max-parallel: 1
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    env:
+      BUILD_WITH_EP: "0"
+      NPU_BUILD: "1"
+
+    container:
+      image: localhost:5000/mooncake-hixl-ci:v5
+
+      options: --privileged --user 0:0 --device /dev/davinci0 --device /dev/davinci1 --device /dev/davinci2 --device /dev/davinci3
+                    --device /dev/davinci4 --device /dev/davinci5 --device /dev/davinci6 --device /dev/davinci7
+                    --device /dev/davinci_manager --device /dev/devmm_svm --device /dev/hisi_hdc --ulimit nproc=65535:65535
+
+      volumes:
+        - /usr/local/dcmi:/usr/local/dcmi:ro
+        - /usr/local/Ascend/driver/:/usr/local/Ascend/driver/:ro
+        - /etc/ascend_install.info:/etc/ascend_install.info:ro
+        - /etc/hccn.conf:/etc/hccn.conf:ro
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          source /usr/local/Ascend/cann-9.0.0/set_env.sh
+          bash -x dependencies.sh -y
+          bash scripts/ascend/dependencies_ascend_installation.sh
+
+      - name: Configure project
+        shell: bash
+        run: |
+          source /usr/local/Ascend/cann-9.0.0/set_env.sh
+          rm -rf build
+          mkdir build
+          cd build
+          cmake_args=(
+            -DUSE_ASCEND_DIRECT=ON
+            -DUSE_CUDA=OFF
+            -DWITH_EP=OFF
+            -DUSE_HTTP=ON
+            -DUSE_ETCD=ON
+            -DSTORE_USE_ETCD=ON
+            -DBUILD_UNIT_TESTS=OFF
+            -DBUILD_EXAMPLES=ON
+            -DCMAKE_BUILD_TYPE=Release
+          )
+          cmake .. "${cmake_args[@]}"
+
+      - name: Build project
+        shell: bash
+        run: |
+          source /usr/local/Ascend/cann-9.0.0/set_env.sh
+          cd build
+          cmake --build . -j$(nproc)
+          cmake --install .
+
+      - name: Generate Python version tag
+        id: generate_tag_release
+        shell: bash
+        run: |
+          echo "python_version_tag=$(echo ${{ matrix.python-version }} | tr -d '.')" >> $GITHUB_OUTPUT
+
+      - name: Build Python wheel
+        shell: bash
+        run: |
+          source /usr/local/Ascend/cann-9.0.0/set_env.sh
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+          NPU_BUILD=1 PYTHON_VERSION=${{ matrix.python-version }} OUTPUT_DIR=dist-npu-py${{ steps.generate_tag_release.outputs.python_version_tag }} ./scripts/build_wheel.sh
+
+      - name: Upload Python wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mooncake-wheel-npu-py${{ steps.generate_tag_release.outputs.python_version_tag }}
+          path: mooncake-wheel/dist-npu-py${{ steps.generate_tag_release.outputs.python_version_tag }}/*.whl
+# name: Release Ascend NPU
+
+# on:
+#   push:
+#     tags:
+#       - 'v*'
+
+# jobs:
+#   build:
+#     if: github.repository == 'kvcache-ai/Mooncake'
+
+#     runs-on: self-hosted
+
+#     permissions:
+#       contents: write
+
+#     strategy:
+#       max-parallel: 1
+#       matrix:
+#         python-version: ['3.10', '3.11', '3.12', '3.13']
+
+#     env:
+#       BUILD_WITH_EP: "0"
+#       NPU_BUILD: "1"
+
+#     container:
+#       image: localhost:5000/mooncake-hixl-ci:v5
+
+#       options: --privileged --user 0:0 --device /dev/davinci0 --device /dev/davinci1 --device /dev/davinci2 --device /dev/davinci3
+#                     --device /dev/davinci4 --device /dev/davinci5 --device /dev/davinci6 --device /dev/davinci7
+#                     --device /dev/davinci_manager --device /dev/devmm_svm --device /dev/hisi_hdc --ulimit nproc=65535:65535
+
+#       volumes:
+#         - /usr/local/dcmi:/usr/local/dcmi:ro
+#         - /usr/local/Ascend/driver/:/usr/local/Ascend/driver/:ro
+#         - /etc/ascend_install.info:/etc/ascend_install.info:ro
+#         - /etc/hccn.conf:/etc/hccn.conf:ro
+
+#     steps:
+#       - name: Checkout source
+#         uses: actions/checkout@v4
+
+#       - name: Set up Python ${{ matrix.python-version }}
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: ${{ matrix.python-version }}
+
+#       - name: Install dependencies
+#         shell: bash
+#         run: |
+#           source /usr/local/Ascend/cann-9.0.0/set_env.sh
+#           bash -x dependencies.sh -y
+#           bash scripts/ascend/dependencies_ascend_installation.sh
+
+#       - name: Configure project
+#         shell: bash
+#         run: |
+#           source /usr/local/Ascend/cann-9.0.0/set_env.sh
+#           rm -rf build
+#           mkdir build
+#           cd build
+#           cmake_args=(
+#             -DUSE_ASCEND_DIRECT=ON
+#             -DUSE_CUDA=OFF
+#             -DWITH_EP=OFF
+#             -DUSE_HTTP=ON
+#             -DUSE_ETCD=ON
+#             -DSTORE_USE_ETCD=ON
+#             -DBUILD_UNIT_TESTS=OFF
+#             -DBUILD_EXAMPLES=ON
+#             -DCMAKE_BUILD_TYPE=Release
+#           )
+#           cmake .. "${cmake_args[@]}"
+
+#       - name: Build project
+#         shell: bash
+#         run: |
+#           source /usr/local/Ascend/cann-9.0.0/set_env.sh
+#           cd build
+#           cmake --build . -j$(nproc)
+#           cmake --install .
+
+#       - name: Generate Python version tag
+#         id: generate_tag_release
+#         shell: bash
+#         run: |
+#           echo "python_version_tag=$(echo ${{ matrix.python-version }} | tr -d '.')" >> $GITHUB_OUTPUT
+
+#       - name: Build Python wheel
+#         shell: bash
+#         run: |
+#           source /usr/local/Ascend/cann-9.0.0/set_env.sh
+#           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+#           NPU_BUILD=1 PYTHON_VERSION=${{ matrix.python-version }} OUTPUT_DIR=dist-npu-py${{ steps.generate_tag_release.outputs.python_version_tag }} ./scripts/build_wheel.sh
+
+#       - name: Upload Python wheel artifact
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: mooncake-wheel-npu-py${{ steps.generate_tag_release.outputs.python_version_tag }}
+#           path: mooncake-wheel/dist-npu-py${{ steps.generate_tag_release.outputs.python_version_tag }}/*.whl
+
+#   publish-release:
+#     needs: build
+#     runs-on: ubuntu-22.04
+#     environment: pypi
+
+#     permissions:
+#       contents: write
+#       id-token: write
+
+#     steps:
+#       - name: Checkout source
+#         uses: actions/checkout@v4
+
+#       - name: Download all wheel artifacts
+#         uses: actions/download-artifact@v4
+#         with:
+#           path: mooncake-wheel/dist-all
+#           pattern: mooncake-wheel-npu-py*
+
+#       - name: Prepare wheels for release
+#         run: |
+#           mkdir -p mooncake-wheel/dist-release
+#           find mooncake-wheel/dist-all -name "*.whl" -exec cp {} mooncake-wheel/dist-release/ \;
+#           echo "Collected wheels for release:"
+#           ls -la mooncake-wheel/dist-release/
+
+#       - name: Upload wheels to GitHub Release
+#         if: github.repository == 'kvcache-ai/Mooncake'
+#         uses: softprops/action-gh-release@v1
+#         with:
+#           files: mooncake-wheel/dist-release/*.whl
+
+#       - name: Publish package to PyPI
+#         if: github.repository == 'kvcache-ai/Mooncake'
+#         uses: pypa/gh-action-pypi-publish@release/v1
+#         with:
+#           packages-dir: mooncake-wheel/dist-release/
