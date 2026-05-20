@@ -20,14 +20,14 @@ jobs:
     strategy:
       max-parallel: 1
       matrix:
-        python-version: ['3.10', '3.11']
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     env:
       BUILD_WITH_EP: "0"
       NPU_BUILD: "1"
 
     container:
-      image: localhost:5000/mooncake-hixl-ci:v6-py310
+      image: localhost:5000/mooncake-hixl-ci:v6-release
 
       options: --privileged --user 0:0 --device /dev/davinci0 --device /dev/davinci1 --device /dev/davinci2 --device /dev/davinci3
                     --device /dev/davinci4 --device /dev/davinci5 --device /dev/davinci6 --device /dev/davinci7
