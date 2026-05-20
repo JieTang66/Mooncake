@@ -264,10 +264,11 @@ echo "Detected glibc version: $GLIBC_VERSION"
 echo "Using platform tag: $PLATFORM_TAG"
 
 echo "Repairing wheel with auditwheel for platform: $PLATFORM_TAG"
-python${PYTHON_VERSION} -m build --wheel --outdir ${OUTPUT_DIR}
 if [ "$NPU_BUILD" = "1" ]; then
+    python${PYTHON_VERSION} -m build --wheel --no-isolation --outdir ${OUTPUT_DIR}
     AUDITWHEEL_CMD="python${PYTHON_VERSION} -m auditwheel"
 else
+    python${PYTHON_VERSION} -m build --wheel --outdir ${OUTPUT_DIR}
     AUDITWHEEL_CMD="auditwheel"
 fi
 ${AUDITWHEEL_CMD} repair ${OUTPUT_DIR}/*.whl \
