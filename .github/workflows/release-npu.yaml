@@ -145,7 +145,7 @@ jobs:
           echo "PATH=/usr/local/go/bin:${PATH}" >> "$GITHUB_ENV"
           echo "GOPROXY=https://goproxy.io|https://mirrors.aliyun.com/goproxy/|https://goproxy.cn|direct" >> "$GITHUB_ENV"
           echo "GOSUMDB=sum.golang.google.cn" >> "$GITHUB_ENV"
-          /usr/local/go/bin/go env -w GOPROXY=https://goproxy.io|https://mirrors.aliyun.com/goproxy/|https://goproxy.cn|direct
+          /usr/local/go/bin/go env -w GOPROXY="https://goproxy.io|https://mirrors.aliyun.com/goproxy/|https://goproxy.cn|direct"
           /usr/local/go/bin/go env -w GOSUMDB=sum.golang.google.cn
 
       - name: Configure project
@@ -172,7 +172,7 @@ jobs:
       - name: Build project
         shell: bash
         env:
-          GOPROXY: https://goproxy.io|https://mirrors.aliyun.com/goproxy/|https://goproxy.cn|direct
+          GOPROXY: 'https://goproxy.io|https://mirrors.aliyun.com/goproxy/|https://goproxy.cn|direct'
           GOSUMDB: sum.golang.google.cn
         run: |
           set -euo pipefail
