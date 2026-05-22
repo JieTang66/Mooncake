@@ -1,0 +1,103 @@
+name: Test NPU Release (Personal Fork)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  mock-build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Create mock wheel files
+        run: |
+          mkdir -p dist-npu-py310
+          python3 -c "
+          import os, zipfile, hashlib, base64, re
+
+          pkg_info = '''Metadata-Version: 2.1
+          Name: mooncake-transfer-engine-npu
+          Version: 0.0.1
+          Summary: Mock NPU wheel for release test
+          '''
+          
+          wheel_content = '''Wheel-Version: 1.0
+          Generator: mock
+          Root-Is-Purelib: false
+          Tag: cp310-cp310-manylinux_2_38_aarch64
+          '''
+
+          record_lines = []
+          whl_name = 'mooncake_transfer_engine_npu-0.0.1-cp310-cp310-manylinux_2_38_aarch64.whl'
+          
+          entries = {
+              'mooncake/__init__.py': '',
+              'mooncake/engine.so': '',
+              'mooncake/libasio.so': '',
+              'mooncake/store.so': '',
+              'mooncake/libtransfer_engine.so': '',
+              'mooncake/libmooncake_store.so': '',
+              'mooncake/libetcd_wrapper.so': '',
+              'mooncake/ascend_transport.so': '',
+              'mooncake/mooncake_master': '',
+              'mooncake/mooncake_client': '',
+              'mooncake/transfer_engine_bench': '',
+              'mooncake_transfer_engine_npu-0.0.1.dist-info/METADATA': pkg_info,
+              'mooncake_transfer_engine_npu-0.0.1.dist-info/WHEEL': wheel_content,
+              'mooncake_transfer_engine_npu-0.0.1.dist-info/top_level.txt': 'mooncake\n',
+          }
+
+          with zipfile.ZipFile(f'dist-npu-py310/{whl_name}', 'w') as zf:
+              for name, content in entries.items():
+                  zf.writestr(name, content)
+                  digest = hashlib.sha256(content.encode()).digest()
+                  b64 = base64.urlsafe_b64encode(digest).rstrip(b'=').decode()
+                  record_lines.append(f'{name},sha256={b64},{len(content.encode())}')
+              record_lines.append('mooncake_transfer_engine_npu-0.0.1.dist-info/RECORD,,')
+              zf.writestr('mooncake_transfer_engine_npu-0.0.1.dist-info/RECORD', '\n'.join(record_lines))
+          "
+          ls -la dist-npu-py310/
+
+      - name: Upload mock wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mooncake-wheel-npu-py310
+          path: dist-npu-py310/*.whl
+
+  publish-release:
+    needs: mock-build
+    runs-on: ubuntu-22.04
+    environment: pypi
+
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Download all wheel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: mooncake-wheel/dist-all
+          pattern: mooncake-wheel-npu-py*
+
+      - name: Prepare wheels for release
+        run: |
+          mkdir -p mooncake-wheel/dist-release
+          find mooncake-wheel/dist-all -name "*.whl" -exec cp {} mooncake-wheel/dist-release/ \;
+          echo "Collected wheels for release:"
+          ls -la mooncake-wheel/dist-release/
+
+      - name: Upload wheels to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: mooncake-wheel/dist-release/*.whl
+
+      - name: Publish package to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: mooncake-wheel/dist-release/
+          repository-url: https://test.pypi.org/legacy/
