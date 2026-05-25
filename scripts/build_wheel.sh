@@ -139,6 +139,10 @@ fi
 
 if [ "$NPU_BUILD" = "1" ]; then
     echo "Stripping shared libraries to reduce wheel size..."
+    find /usr/local/lib -name "libmooncake*.so" -exec strip --strip-unneeded {} \;
+    find /usr/local/lib -name "libtransfer_engine*.so" -exec strip --strip-unneeded {} \;
+    find /usr/local/lib -name "libetcd_wrapper*.so" -exec strip --strip-unneeded {} \;
+    find /usr/local/lib -name "libasio*.so" -exec strip --strip-unneeded {} \;
     find mooncake-wheel/mooncake -name "*.so" -exec strip --strip-unneeded {} \;
 fi
 
