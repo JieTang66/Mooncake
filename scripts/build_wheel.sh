@@ -398,6 +398,29 @@ if [ -n "$CUDA_EP_STAGING_TEMP" ]; then
     rm -rf "$CUDA_EP_STAGING_TEMP"
 fi
 
+# NPU only: patchelf standalone binaries to set RPATH=$ORIGIN
+# auditwheel does not process standalone executables (mooncake_master, etc.),
+# so we need to manually set their RPATH so they can find .so files in the
+# same directory after pip install.
+if [ "$NPU_BUILD" = "1" ]; then
+    REPAIRED_WHEEL=$(ls ${REPAIRED_DIR}/*.whl 2>/dev/null | head -1)
+    if [ -n "$REPAIRED_WHEEL" ]; then
+        echo "Setting RPATH for standalone binaries in repaired wheel..."
+        WHEEL_UNPACK_DIR=$(mktemp -d)
+        python${PYTHON_VERSION} -m wheel unpack "$REPAIRED_WHEEL" -d "$WHEEL_UNPACK_DIR"
+        UNPACKED_PKG_DIR=$(find "$WHEEL_UNPACK_DIR" -mindepth 1 -maxdepth 1 -type d | head -1)
+        for bin_file in mooncake_master mooncake_client transfer_engine_bench; do
+            if [ -f "${UNPACKED_PKG_DIR}/mooncake/${bin_file}" ]; then
+                echo "  Setting RPATH for ${bin_file}"
+                patchelf --force-rpath --set-rpath '$ORIGIN' "${UNPACKED_PKG_DIR}/mooncake/${bin_file}"
+            fi
+        done
+        rm "$REPAIRED_WHEEL"
+        python${PYTHON_VERSION} -m wheel pack "$UNPACKED_PKG_DIR" -d "${REPAIRED_DIR}/"
+        rm -rf "$WHEEL_UNPACK_DIR"
+    fi
+fi
+
 # Replace original wheel with repaired wheel
 rm -f ${OUTPUT_DIR}/*.whl
 mv ${REPAIRED_DIR}/*.whl ${OUTPUT_DIR}/
